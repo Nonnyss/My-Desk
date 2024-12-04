@@ -48,10 +48,11 @@ void logSensorData(float temperature, float humidity, long distance, bool motion
 void controlLightTask(void *pvParameters)
 {
     std::vector<long> duplicate;
-    const int stableCount = 10;
-    const int maxSize = 15;
-    const int errorRate = 1;
-    const int changeThreshold = 3;
+    const double stableCount = 20;
+    const double maxSize = 30;
+    const double errorRate = 0;
+    const double changeThreshold = 30;
+    int previousState = 0;
 
     while (1)
     {
@@ -64,20 +65,37 @@ void controlLightTask(void *pvParameters)
             controlRelay(true);
             controlRelay2(true);
             Serial.println("Relay ON (Distance >= 2000)");
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            vTaskDelay(10000 / portTICK_PERIOD_MS);
             continue;
         }
 
-        if (duplicate.empty() || abs(duplicate.back() - distance) > changeThreshold)
+        if (!isLightOn() && abs(previousState - distance) > changeThreshold)
         {
-            duplicate.clear();
-            duplicate.push_back(distance);
+            if (duplicate.empty() || abs(duplicate.back() - distance) > errorRate)
+            {
+                duplicate.clear();
+                duplicate.push_back(distance);
+                controlRelay(true);
+                controlRelay2(true);
+                Serial.println("Relay ON (Significant Change)");
+            }
+            else
+            {
+                duplicate.push_back(distance);
+                if (duplicate.size() > maxSize)
+                {
+                    duplicate.erase(duplicate.begin());
+                }
 
-            controlRelay(true);
-            controlRelay2(true);
-            Serial.println("Relay ON (Significant Distance Change)");
+                if (duplicate.size() >= stableCount)
+                {
+                    controlRelay(false);
+                    controlRelay2(false);
+                    Serial.println("Relay OFF (Stability Reached)");
+                }
+            }
         }
-        else if (abs(duplicate.back() - distance) > errorRate)
+        else
         {
             duplicate.push_back(distance);
 
@@ -85,15 +103,16 @@ void controlLightTask(void *pvParameters)
             {
                 duplicate.erase(duplicate.begin());
             }
+
+            if (duplicate.size() >= stableCount)
+            {
+                controlRelay(false);
+                controlRelay2(false);
+                Serial.println("Relay OFF (Stable Readings)");
+            }
         }
 
-        if (duplicate.size() >= stableCount)
-        {
-            controlRelay(false);
-            controlRelay2(false);
-            Serial.println("Relay OFF (Stable Distance)");
-        }
-
+        previousState = distance;
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
@@ -164,9 +183,9 @@ void setup()
 
     controlRelay(true);
     controlRelay2(true);
-
+    clearDisplay();
     xTaskCreate(controlLightTask, "Control Light Task", 2048, NULL, 1, NULL);
-    /* xTaskCreate(logDataTask, "Log Data Task", 2048, NULL, 1, NULL); */
+    xTaskCreate(logDataTask, "Log Data Task", 2048, NULL, 1, NULL);
     xTaskCreate(updateDisplayTask, "Update Display Task", 2048, NULL, 1, NULL);
 }
 
