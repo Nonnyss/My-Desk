@@ -51,6 +51,7 @@ void controlLightTask(void *pvParameters)
     const int stableCount = 10;
     const int maxSize = 15;
     const int errorRate = 1;
+    const int changeThreshold = 3;
 
     while (1)
     {
@@ -63,20 +64,20 @@ void controlLightTask(void *pvParameters)
             controlRelay(true);
             controlRelay2(true);
             Serial.println("Relay ON (Distance >= 2000)");
-            vTaskDelay(10000 / portTICK_PERIOD_MS);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
             continue;
         }
 
-        if (duplicate.empty() || abs(duplicate.back() - distance) > errorRate)
+        if (duplicate.empty() || abs(duplicate.back() - distance) > changeThreshold)
         {
             duplicate.clear();
             duplicate.push_back(distance);
 
             controlRelay(true);
             controlRelay2(true);
-            Serial.println("Relay ON");
+            Serial.println("Relay ON (Significant Distance Change)");
         }
-        else
+        else if (abs(duplicate.back() - distance) > errorRate)
         {
             duplicate.push_back(distance);
 
@@ -84,13 +85,13 @@ void controlLightTask(void *pvParameters)
             {
                 duplicate.erase(duplicate.begin());
             }
+        }
 
-            if (duplicate.size() >= stableCount)
-            {
-                controlRelay(false);
-                controlRelay2(false);
-                Serial.println("Relay OFF");
-            }
+        if (duplicate.size() >= stableCount)
+        {
+            controlRelay(false);
+            controlRelay2(false);
+            Serial.println("Relay OFF (Stable Distance)");
         }
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
