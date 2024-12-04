@@ -25,3 +25,8 @@ void controlRelay2(bool state)
 {
     digitalWrite(relayPin2, state ? LOW : HIGH);
 }
+
+bool isLightOn()
+{
+    return digitalRead(relayPin) == HIGH && digitalRead(relayPin2) == LOW;
+}
